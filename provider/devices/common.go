@@ -701,6 +701,13 @@ func setupIOSDevice(device *models.Device) {
 	err = pairIOS(device)
 	if err != nil {
 		logger.ProviderLogger.LogError("ios_device_setup", fmt.Sprintf("Failed to pair device `%s` - %v", device.UDID, err))
+		// Wait 30s before resetting so updateDevices cannot start a new goroutine while the
+		// Trust dialog is visible. ProviderState remains "preparing" during the sleep, which
+		// prevents updateDevices from launching a competing setup goroutine.
+		select {
+		case <-time.After(30 * time.Second):
+		case <-device.Context.Done():
+		}
 		ResetLocalDevice(device, "Failed to pair device.")
 		return
 	}
