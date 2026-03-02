@@ -310,6 +310,12 @@ func updateDevices() {
 						dbDevice.AppiumReadyChan = make(chan bool, 1)
 						switch dbDevice.OS {
 						case "ios":
+							// Throttle setup retries: wait at least 30s after last reset to avoid
+							// flapping the Trust dialog on non-supervised devices.
+							if !dbDevice.LastSetupResetTS.IsZero() &&
+								time.Since(dbDevice.LastSetupResetTS) < 30*time.Second {
+								continue DEVICE_MAP_LOOP
+							}
 							dbDevice.WdaReadyChan = make(chan bool, 1)
 							go setupIOSDevice(dbDevice)
 						case "android":
@@ -1045,6 +1051,7 @@ func ResetLocalDevice(device *models.Device, reason string) {
 		device.IsResetting = true
 		device.CtxCancel()
 		device.ProviderState = "init"
+		device.LastSetupResetTS = time.Now()
 		device.IsResetting = false
 		if device.GoIOSTunnel.Address != "" {
 			device.GoIOSTunnel.Close()

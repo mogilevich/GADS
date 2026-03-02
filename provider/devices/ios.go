@@ -123,6 +123,14 @@ func mountDeveloperImageIOS(device *models.Device) {
 
 // Pair an iOS device with host with/without supervision
 func pairIOS(device *models.Device) error {
+	// Skip pairing if a valid pairing record already exists for this device.
+	// This prevents the Trust dialog from appearing on devices that are already paired.
+	if record, err := ios.ReadPairRecord(device.UDID); err == nil && record.HostID != "" {
+		logger.ProviderLogger.LogInfo("ios_device_setup",
+			fmt.Sprintf("Valid pairing record already exists for device `%s`, skipping pairing", device.UDID))
+		return nil
+	}
+
 	logger.ProviderLogger.LogInfo("ios_device_setup", fmt.Sprintf("Pairing device `%s`", device.UDID))
 
 	p12, err := os.ReadFile(fmt.Sprintf("%s/supervision.p12", config.ProviderConfig.ProviderFolder))
