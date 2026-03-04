@@ -119,6 +119,50 @@ func StartHub(flags *pflag.FlagSet, appVersion string, uiFiles fs.FS, resourceFi
 		config.GlobalHubConfig.MinioAvailable = true
 	}
 
+	// Initialize OIDC/SSO configuration
+	oidcIssuer, _ := flags.GetString("oidc-issuer")
+	if oidcIssuer != "" {
+		oidcClientID, _ := flags.GetString("oidc-client-id")
+		oidcClientSecret, _ := flags.GetString("oidc-client-secret")
+		oidcRedirectURI, _ := flags.GetString("oidc-redirect-uri")
+		oidcAdminGroup, _ := flags.GetString("oidc-admin-group")
+
+		oidcCfg := models.OIDCConfig{
+			Enabled:      true,
+			IssuerURL:    oidcIssuer,
+			ClientID:     oidcClientID,
+			ClientSecret: oidcClientSecret,
+			RedirectURI:  oidcRedirectURI,
+			AdminGroup:   oidcAdminGroup,
+			GroupsClaim:  "groups",
+		}
+
+		err = db.GlobalMongoStore.UpdateOIDCConfig(oidcCfg)
+		if err != nil {
+			log.Warnf("Failed to save OIDC config to database: %v", err)
+		}
+
+		err = auth.InitOIDC(oidcCfg)
+		if err != nil {
+			log.Warnf("Failed to initialize OIDC: %v. SSO will be disabled.", err)
+		} else {
+			config.GlobalHubConfig.OIDCEnabled = true
+			fmt.Printf("OIDC/SSO enabled with issuer: %s\n", oidcIssuer)
+		}
+	} else {
+		// Try loading OIDC config from database
+		oidcCfg, err := db.GlobalMongoStore.GetOIDCConfig()
+		if err == nil && oidcCfg.Enabled && oidcCfg.IssuerURL != "" {
+			err = auth.InitOIDC(oidcCfg)
+			if err != nil {
+				log.Warnf("OIDC config found in database but initialization failed: %v", err)
+			} else {
+				config.GlobalHubConfig.OIDCEnabled = true
+				fmt.Println("OIDC/SSO enabled from database configuration")
+			}
+		}
+	}
+
 	// Initialize the secret key cache
 	secretStore := auth.NewSecretStore(db.GlobalMongoStore.GetDefaultDatabase())
 	err = auth.InitSecretCache(secretStore, 5*time.Minute)

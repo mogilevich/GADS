@@ -92,6 +92,10 @@ func HandleRequests(uiFiles fs.FS) *gin.Engine {
 	authGroup.POST("/provider-update", ProviderUpdate)
 	// OAuth2 endpoints (unauthenticated)
 	authGroup.POST("/oauth/token", OAuth2TokenEndpoint)
+	// SSO/OIDC endpoints (unauthenticated)
+	authGroup.GET("/auth/sso/login", auth.SSOLoginHandler)
+	authGroup.GET("/auth/sso/callback", auth.SSOCallbackHandler)
+	authGroup.GET("/auth/sso/status", GetSSOStatusHandler)
 	// Enable authentication on the endpoints below
 	if config.GlobalHubConfig.AuthEnabled {
 		authGroup.Use(auth.AuthMiddleware())
@@ -132,6 +136,9 @@ func HandleRequests(uiFiles fs.FS) *gin.Engine {
 	authGroup.DELETE("/admin/workspaces/:id", DeleteWorkspace)
 	authGroup.GET("/admin/workspaces", GetWorkspaces)
 	authGroup.GET("/workspaces", GetUserWorkspaces)
+	// OIDC configuration endpoints
+	authGroup.GET("/admin/oidc-config", GetOIDCConfigHandler)
+	authGroup.POST("/admin/oidc-config", UpdateOIDCConfigHandler)
 	// Secret Keys endpoints
 	authGroup.GET("/admin/secret-keys", GetSecretKeys)
 	authGroup.POST("/admin/secret-keys", AddSecretKey)
