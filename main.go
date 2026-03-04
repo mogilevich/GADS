@@ -49,6 +49,11 @@ func main() {
 		"\nTokens are automatically renewed while they are being used, so this is effectively an inactivity timeout")
 	hubCmd.Flags().Duration("max-session-age", 24*time.Hour, "Maximum total lifetime of a user session, no matter how many times its token was renewed."+
 		"\nUse 0 for no limit. Tokens from the OAuth2 client credentials flow are not affected")
+	hubCmd.Flags().String("oidc-issuer", "", "OIDC issuer URL (e.g., https://sso.example.dev/realms/SSO)")
+	hubCmd.Flags().String("oidc-client-id", "", "OIDC client ID")
+	hubCmd.Flags().String("oidc-client-secret", "", "OIDC client secret")
+	hubCmd.Flags().String("oidc-redirect-uri", "", "OIDC redirect URI (e.g., http://hub:10000/auth/sso/callback)")
+	hubCmd.Flags().String("oidc-admin-group", "", "Keycloak group name that maps to GADS admin role")
 	rootCmd.AddCommand(hubCmd)
 
 	// Provider Command
