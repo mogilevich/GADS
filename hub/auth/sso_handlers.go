@@ -154,6 +154,7 @@ func provisionSSOUser(username, role string) error {
 		// User exists — update role only for SSO-provisioned users (password starts with __SSO__)
 		if strings.HasPrefix(existingUser.Password, "__SSO__") && existingUser.Role != role {
 			existingUser.Role = role
+			existingUser.ID = "" // Clear _id so omitempty excludes it from $set (MongoDB _id is immutable)
 			return db.GlobalMongoStore.AddOrUpdateUser(existingUser)
 		}
 		return nil
