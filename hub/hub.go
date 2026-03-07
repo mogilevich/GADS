@@ -111,7 +111,7 @@ func StartHub(flags *pflag.FlagSet, appVersion string, uiFiles fs.FS, resourceFi
 		config.GlobalHubConfig.MinioAvailable = false
 	} else {
 		fmt.Println("Initializing MinIO client...")
-		err = minio.InitMinioClientWithConfig(minioConfig.Endpoint, minioConfig.AccessKeyID, minioConfig.SecretAccessKey, minioConfig.UseSSL)
+		_, err = minio.InitMinioClientWithConfig(minioConfig.Endpoint, minioConfig.AccessKeyID, minioConfig.SecretAccessKey, minioConfig.UseSSL)
 		if err != nil {
 			log.Fatalf("MinIO is enabled in configuration but client initialization failed: %v", err)
 		}
