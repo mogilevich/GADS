@@ -299,6 +299,10 @@ func updateDevices() {
 				if slices.Contains(connectedDevices, dbDeviceUDID) {
 					dbDevice.Connected = true
 					if dbDevice.ProviderState != "preparing" && dbDevice.ProviderState != "live" {
+						if !dbDevice.InitialSetupDone {
+							logger.ProviderLogger.LogWarn("device_setup", fmt.Sprintf("Device %s initial setup not completed (invalid os_version?). Skipping.", dbDevice.UDID))
+							continue
+						}
 						// Validate device configuration before setup
 						err := models.ValidateDeviceUsageForOS(dbDevice.OS, dbDevice.Usage)
 						if err != nil {
