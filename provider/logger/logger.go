@@ -136,7 +136,12 @@ func (hook *MongoDBHook) Fire(entry *log.Entry) error {
 		Message:   entry.Message,
 		Timestamp: time.Now().UnixMilli(),
 		Host:      config.ProviderConfig.Nickname,
-		EventName: fields["event"].(string),
+		EventName: func() string {
+			if v, ok := fields["event"].(string); ok {
+				return v
+			}
+			return "unknown"
+		}(),
 	}
 
 	document, err := bson.Marshal(logEntry)
