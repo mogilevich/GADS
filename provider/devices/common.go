@@ -209,7 +209,7 @@ func initializeDevice(dbDevice *models.Device) error {
 		// Check if a capped Appium logs collection already exists for the current device
 		exists, err := db.GlobalMongoStore.CheckCollectionExistsWithDB("appium_logs_new", dbDevice.UDID)
 		if err != nil {
-			logger.ProviderLogger.Warnf("Could not check if device collection exists in `appium_logs_new` db, will attempt to create it either way - %s", err)
+			logger.ProviderLogger.LogWarn("setup_device", fmt.Sprintf("Could not check if device collection exists in `appium_logs_new` db, will attempt to create it either way - %s", err))
 		}
 
 		// If it doesn't exist - attempt to create it
@@ -260,7 +260,7 @@ func initializeDevice(dbDevice *models.Device) error {
 func setupDevices() {
 	for _, dbDevice := range DBDeviceMap {
 		if err := initializeDevice(dbDevice); err != nil {
-			logger.ProviderLogger.Errorf("setupDevices: %s", err)
+			logger.ProviderLogger.LogError("setup_device", fmt.Sprintf("setupDevices: %s", err))
 		}
 	}
 }
