@@ -905,6 +905,11 @@ func setupIOSDevice(device *models.Device) {
 	}
 	logger.ProviderLogger.LogDebug("ios_device_setup", fmt.Sprintf("Successfully created WebDriverAgent session and updated stream settings for device `%v`", device.UDID))
 
+	logger.ProviderLogger.LogDebug("ios_device_setup", fmt.Sprintf("Setting default brightness for device `%s`", device.UDID))
+	if err := SetDeviceBrightnessIOS(device, constants.DefaultBrightness); err != nil {
+		logger.ProviderLogger.LogWarn("ios_device_setup", fmt.Sprintf("Failed to set default brightness for device `%s` - %s", device.UDID, err))
+	}
+
 	if config.ProviderConfig.SetupAppiumServers {
 		logger.ProviderLogger.LogDebug("ios_device_setup", fmt.Sprintf("Attempting to kill existing Appium processes for device `%s`", device.UDID))
 		err := cli.KillDeviceAppiumProcess(device.UDID)

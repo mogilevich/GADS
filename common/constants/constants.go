@@ -17,6 +17,7 @@ const (
 	SortAscending            IndexSort = 1
 	SortDescending           IndexSort = -1
 	AndroidSharedStorageRoot           = "/storage/emulated/0"
+	DefaultBrightness                  = 0.2 // 20% screen brightness for devices after setup and release
 )
 
 var AndroidAllowedSharedStorageFolders = []string{
