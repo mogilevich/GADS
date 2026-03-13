@@ -111,7 +111,7 @@ func SetDeviceBrightnessIOS(device *models.Device, brightness float64) error {
 		return fmt.Errorf("SetDeviceBrightnessIOS: Failed to marshal brightness payload - %s", err)
 	}
 
-	url := fmt.Sprintf("http://localhost:%v/wda/setBrightness", device.WDAPort)
+	url := fmt.Sprintf("http://localhost:%v/wda/brightness", device.WDAPort)
 	response, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
 	if err != nil {
 		return fmt.Errorf("SetDeviceBrightnessIOS: Failed to send brightness request for device `%s` - %s", device.UDID, err)
