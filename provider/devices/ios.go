@@ -104,6 +104,28 @@ func UpdateWebDriverAgentStreamSettings(device *models.Device) error {
 	return nil
 }
 
+func SetDeviceBrightnessIOS(device *models.Device, brightness float64) error {
+	payload := map[string]float64{"brightness": brightness}
+	requestBody, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("SetDeviceBrightnessIOS: Failed to marshal brightness payload - %s", err)
+	}
+
+	url := fmt.Sprintf("http://localhost:%v/wda/setBrightness", device.WDAPort)
+	response, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
+	if err != nil {
+		return fmt.Errorf("SetDeviceBrightnessIOS: Failed to send brightness request for device `%s` - %s", device.UDID, err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != 200 {
+		body, _ := io.ReadAll(response.Body)
+		return fmt.Errorf("SetDeviceBrightnessIOS: Failed to set brightness for device `%s`, status=%d, body=%s", device.UDID, response.StatusCode, string(body))
+	}
+
+	return nil
+}
+
 func mountDeveloperImageIOS(device *models.Device) {
 	basedir := fmt.Sprintf("%s/devimages", config.ProviderConfig.ProviderFolder)
 
