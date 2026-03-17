@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"GADS/common/api"
-	"GADS/common/constants"
 	"GADS/common/models"
 	"GADS/provider/devices"
 
@@ -396,41 +395,4 @@ func DeviceExecuteCustomAction(c *gin.Context) {
 	}
 
 	api.GenericResponse(c, actionResp.StatusCode, string(body), nil)
-}
-
-func DeviceSetBrightness(c *gin.Context) {
-	udid := c.Param("udid")
-
-	devices.DbDeviceMapMutex.RLock()
-	device, ok := devices.DBDeviceMap[udid]
-	devices.DbDeviceMapMutex.RUnlock()
-
-	if !ok {
-		api.GenericResponse(c, http.StatusNotFound, fmt.Sprintf("Did not find device with udid `%s`", udid), nil)
-		return
-	}
-
-	device.Logger.LogInfo("device_control", "Setting device brightness")
-
-	if device.OS != "ios" {
-		api.GenericResponse(c, http.StatusBadRequest, "Brightness control is currently supported only for iOS devices", nil)
-		return
-	}
-
-	var requestBody struct {
-		Brightness *float64 `json:"brightness"`
-	}
-	if err := json.NewDecoder(c.Request.Body).Decode(&requestBody); err != nil || requestBody.Brightness == nil {
-		// Use default brightness constant if no brightness specified
-		defaultBrightness := constants.DefaultBrightness
-		requestBody.Brightness = &defaultBrightness
-	}
-
-	if err := devices.SetDeviceBrightnessIOS(device, *requestBody.Brightness); err != nil {
-		device.Logger.LogError("device_control", fmt.Sprintf("Failed to set brightness - %s", err))
-		api.GenericResponse(c, http.StatusInternalServerError, err.Error(), nil)
-		return
-	}
-
-	api.GenericResponse(c, http.StatusOK, fmt.Sprintf("Brightness set to %.0f%%", *requestBody.Brightness*100), nil)
 }

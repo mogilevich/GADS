@@ -443,7 +443,7 @@ func AppiumGridMiddleware() gin.HandlerFunc {
 							foundDevice.InUseBy = ""
 							foundDevice.InUseByTenant = ""
 							foundDevice.InUseTS = 0
-							go triggerBrightnessReset(foundDevice.Device.UDID, foundDevice.Device.Host, foundDevice.Device.OS)
+
 						}
 					}
 					devices.HubDevicesData.Mu.Unlock()
@@ -464,7 +464,7 @@ func AppiumGridMiddleware() gin.HandlerFunc {
 							foundDevice.InUseBy = ""
 							foundDevice.InUseByTenant = ""
 							foundDevice.InUseTS = 0
-							go triggerBrightnessReset(foundDevice.Device.UDID, foundDevice.Device.Host, foundDevice.Device.OS)
+
 						}
 					}
 					devices.HubDevicesData.Mu.Unlock()
