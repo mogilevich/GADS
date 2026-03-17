@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go doc github.com/danielpaulus/go-ios/ios.PairRecord)",
+      "Bash(zip gads-linux.zip gads-linux-amd64)",
+      "Bash(zip gads-mac-arm64.zip gads-darwin-arm64)"
+    ]
+  }
+}

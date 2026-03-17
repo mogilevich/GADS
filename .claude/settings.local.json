@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(GOOS=darwin GOARCH=arm64 go build -o gads-darwin-arm64 .)",
+      "Bash(find /Users/a.mogilevich/github/GADS -type f -name \"*.go\" -exec grep -l \"tunnel\\\\|lockdown\\\\|handshake\\\\|pair\\\\|trust\" {} ;)",
+      "Bash(git log --all --oneline --grep=\"usb\\\\|reconnect\\\\|disconnect\" -i)",
+      "Bash(go list -m all)",
+      "Bash(grep -n \"already.*pair\\\\|Pair.*record\\\\|PairRecord\\\\|pair.*exist\\\\|check.*pair\" -i /Users/a.mogilevich/github/GADS/provider/devices/*.go)",
+      "Bash(go doc github.com/danielpaulus/go-ios/ios)",
+      "Bash(go doc github.com/danielpaulus/go-ios/ios.ReadPairRecord)",
+      "Bash(grep -r \"environ\\\\|getenv\\\\|ENV\\\\|flag\\\\|oauth\\\\|oidc\\\\|sso\\\\|keycloak\" /Users/a.mogilevich/github/GADS/*.go)",
+      "Bash(go build ./...)",
+      "Bash(go doc:*)",
+      "Bash(go build:*)",
+      "Bash(zip gads-mac-arm64.zip GADS-darwin-arm64)",
+      "Bash(zip gads-linux.zip GADS-linux-amd64)",
+      "Bash(git tag:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}

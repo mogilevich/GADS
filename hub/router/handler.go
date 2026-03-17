@@ -12,6 +12,7 @@ package router
 import (
 	"GADS/hub/auth"
 	"GADS/hub/config"
+	"bytes"
 	"io"
 	"io/fs"
 	"log"
@@ -52,11 +53,15 @@ func HandleRequests(uiFiles fs.FS) *gin.Engine {
 				return
 			}
 
-			if path != "/" {
-				_, err := uiFS.Open(strings.TrimPrefix(path, "/"))
-				if err != nil {
-					return
-				}
+			// For root path, serve index.html with SSO button injection if needed
+			if path == "/" {
+				serveIndexHTML(c, uiFS)
+				return
+			}
+
+			_, err := uiFS.Open(strings.TrimPrefix(path, "/"))
+			if err != nil {
+				return
 			}
 
 			fileServer := http.FileServer(http.FS(uiFS))
@@ -65,20 +70,7 @@ func HandleRequests(uiFiles fs.FS) *gin.Engine {
 		})
 
 		r.NoRoute(func(c *gin.Context) {
-			indexFile, err := uiFS.Open("index.html")
-			if err != nil {
-				c.AbortWithStatus(http.StatusInternalServerError)
-				return
-			}
-			defer indexFile.Close()
-
-			stat, err := indexFile.Stat()
-			if err != nil {
-				c.AbortWithStatus(http.StatusInternalServerError)
-				return
-			}
-
-			http.ServeContent(c.Writer, c.Request, "index.html", stat.ModTime(), indexFile.(io.ReadSeeker))
+			serveIndexHTML(c, uiFS)
 		})
 	}
 
@@ -91,6 +83,10 @@ func HandleRequests(uiFiles fs.FS) *gin.Engine {
 	authGroup.POST("/provider-update", ProviderUpdate)
 	// OAuth2 endpoints (unauthenticated)
 	authGroup.POST("/oauth/token", OAuth2TokenEndpoint)
+	// SSO/OIDC endpoints (unauthenticated)
+	authGroup.GET("/auth/sso/login", auth.SSOLoginHandler)
+	authGroup.GET("/auth/sso/callback", auth.SSOCallbackHandler)
+	authGroup.GET("/auth/sso/status", GetSSOStatusHandler)
 	// Enable authentication on the endpoints below
 	if config.GlobalHubConfig.AuthEnabled {
 		authGroup.Use(auth.AuthMiddleware())
@@ -131,6 +127,9 @@ func HandleRequests(uiFiles fs.FS) *gin.Engine {
 	authGroup.DELETE("/admin/workspaces/:id", DeleteWorkspace)
 	authGroup.GET("/admin/workspaces", GetWorkspaces)
 	authGroup.GET("/workspaces", GetUserWorkspaces)
+	// OIDC configuration endpoints
+	authGroup.GET("/admin/oidc-config", GetOIDCConfigHandler)
+	authGroup.POST("/admin/oidc-config", UpdateOIDCConfigHandler)
 	// Secret Keys endpoints
 	authGroup.GET("/admin/secret-keys", GetSecretKeys)
 	authGroup.POST("/admin/secret-keys", AddSecretKey)
@@ -159,4 +158,92 @@ func HandleRequests(uiFiles fs.FS) *gin.Engine {
 	appiumGroup.Any("/*path")
 
 	return r
+}
+
+// serveIndexHTML reads index.html from the UI filesystem, injects SSO button if OIDC is enabled, and serves it
+func serveIndexHTML(c *gin.Context, uiFS fs.FS) {
+	indexFile, err := uiFS.Open("index.html")
+	if err != nil {
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	defer indexFile.Close()
+
+	htmlBytes, err := io.ReadAll(indexFile)
+	if err != nil {
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+
+	if auth.IsOIDCEnabled() {
+		htmlBytes = injectSSOButton(htmlBytes)
+	}
+
+	c.Data(http.StatusOK, "text/html; charset=utf-8", htmlBytes)
+	c.Abort()
+}
+
+// injectSSOButton injects a small script into index.html that adds an SSO login button
+// to the login page. The button only appears when the user is not authenticated.
+func injectSSOButton(html []byte) []byte {
+	ssoScript := []byte(`<script>
+(function() {
+  // Only show SSO button if user is not logged in
+  if (localStorage.getItem('accessToken')) return;
+
+  // Wait for the page to render, then inject the SSO button
+  var attempts = 0;
+  var interval = setInterval(function() {
+    attempts++;
+    if (attempts > 50) { clearInterval(interval); return; }
+
+    // Look for any form or login-related container
+    var form = document.querySelector('form');
+    var root = document.getElementById('root');
+    if (!form && (!root || !root.innerHTML)) return;
+
+    clearInterval(interval);
+
+    // Create SSO button container
+    var container = document.createElement('div');
+    container.id = 'sso-login-container';
+    container.style.cssText = 'text-align:center;margin-top:16px;';
+
+    var divider = document.createElement('div');
+    divider.style.cssText = 'color:#888;font-size:13px;margin-bottom:10px;font-family:sans-serif;';
+    divider.textContent = '— or —';
+
+    var btn = document.createElement('a');
+    btn.href = '/auth/sso/login';
+    btn.textContent = 'Login with SSO';
+    btn.style.cssText = 'display:inline-block;padding:10px 28px;background:#1976d2;color:#fff;' +
+      'border-radius:6px;text-decoration:none;font-family:sans-serif;font-size:14px;font-weight:500;' +
+      'box-shadow:0 2px 8px rgba(0,0,0,0.15);transition:background 0.2s;';
+    btn.onmouseover = function() { btn.style.background='#1565c0'; };
+    btn.onmouseout = function() { btn.style.background='#1976d2'; };
+
+    container.appendChild(divider);
+    container.appendChild(btn);
+
+    // Insert right after the login form instead of at the bottom of the page
+    if (form) {
+      form.parentNode.insertBefore(container, form.nextSibling);
+    } else {
+      document.body.appendChild(container);
+    }
+
+    // Remove SSO button if user becomes authenticated (SPA navigation)
+    var observer = new MutationObserver(function() {
+      if (localStorage.getItem('accessToken')) {
+        var el = document.getElementById('sso-login-container');
+        if (el) el.remove();
+        observer.disconnect();
+      }
+    });
+    observer.observe(root, { childList: true, subtree: true });
+  }, 100);
+})();
+</script>`)
+
+	return bytes.Replace(html, []byte("</body>"), append(ssoScript, []byte("</body>")...), 1)
 }

@@ -45,6 +45,8 @@ type HubConfig struct {
 	FilesTempDir         string `json:"-"`
 	OS                   string `json:"os"`
 	AuthEnabled          bool   `json:"auth_enabled"`
+	MinioAvailable       bool   `json:"minio_available"`
+	OIDCEnabled          bool   `json:"oidc_enabled"`
 	TURNUsernameSuffix   string `json:"-"`
 }
 
