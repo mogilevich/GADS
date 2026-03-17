@@ -83,7 +83,6 @@ func HandleRequests() *gin.Engine {
 	deviceGroup.POST("/launchApp", LaunchApp)
 	deviceGroup.POST("/closeApp", CloseApp)
 	deviceGroup.POST("/reset", ResetDevice)
-	deviceGroup.POST("/setBrightness", DeviceSetBrightness)
 	deviceGroup.POST("/uploadAndInstallApp", UploadAndInstallApp)
 	deviceGroup.POST("/adb-tcpip/enable", DeviceEnableAdbTcpIp)
 	deviceGroup.POST("/adb-tcpip/disable", DeviceDisableAdbTcpIp)

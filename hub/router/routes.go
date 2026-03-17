@@ -37,23 +37,7 @@ var netClient = &http.Client{
 	Timeout: time.Second * 120,
 }
 
-var brightnessClient = &http.Client{
-	Timeout: time.Second * 10,
-}
 
-// triggerBrightnessReset sends a request to the provider to reset device brightness to the default level
-func triggerBrightnessReset(udid string, deviceHost string, deviceOS string) {
-	if deviceOS != "ios" {
-		return
-	}
-	url := fmt.Sprintf("http://%s/device/%s/setBrightness", deviceHost, udid)
-	resp, err := brightnessClient.Post(url, "application/json", nil)
-	if err != nil {
-		logger.ProviderLogger.LogWarn("brightness_reset", fmt.Sprintf("Failed to trigger brightness reset for device `%s` - %s", udid, err))
-		return
-	}
-	resp.Body.Close()
-}
 
 // HealthCheck godoc
 // @Summary      Health check endpoint
@@ -588,7 +572,6 @@ func DeviceInUseWS(c *gin.Context) {
 			devices.HubDevicesData.Devices[udid].InUseTS = 0
 			devices.HubDevicesData.Devices[udid].InUseBy = ""
 			devices.HubDevicesData.Devices[udid].InUseByTenant = ""
-			go triggerBrightnessReset(udid, devices.HubDevicesData.Devices[udid].Device.Host, devices.HubDevicesData.Devices[udid].Device.OS)
 		}
 		// Capture provider host before releasing the lock for ADB TCP/IP cleanup
 		var providerHost string
@@ -650,7 +633,6 @@ func DeviceInUseWS(c *gin.Context) {
 							devices.HubDevicesData.Devices[udid].InUseTS = 0
 							devices.HubDevicesData.Devices[udid].InUseBy = ""
 							devices.HubDevicesData.Devices[udid].InUseByTenant = ""
-							go triggerBrightnessReset(udid, devices.HubDevicesData.Devices[udid].Device.Host, devices.HubDevicesData.Devices[udid].Device.OS)
 							devices.HubDevicesData.Mu.Unlock()
 							// Cancel the current websocket goroutines and stuff
 							cancel()
@@ -716,7 +698,6 @@ func DeviceInUseWS(c *gin.Context) {
 				devices.HubDevicesData.Devices[udid].InUseTS = 0
 				devices.HubDevicesData.Devices[udid].InUseBy = ""
 				devices.HubDevicesData.Devices[udid].InUseByTenant = ""
-				go triggerBrightnessReset(udid, devices.HubDevicesData.Devices[udid].Device.Host, devices.HubDevicesData.Devices[udid].Device.OS)
 			}
 			devices.HubDevicesData.Mu.Unlock()
 			return
@@ -1072,10 +1053,6 @@ func ReleaseUsedDevice(c *gin.Context) {
 	devices.HubDevicesData.Devices[udid].InUseTS = 0
 	devices.HubDevicesData.Devices[udid].InUseBy = ""
 	devices.HubDevicesData.Devices[udid].InUseByTenant = ""
-
-	if !devices.HubDevicesData.Devices[udid].IsRunningAutomation {
-		go triggerBrightnessReset(udid, devices.HubDevicesData.Devices[udid].Device.Host, devices.HubDevicesData.Devices[udid].Device.OS)
-	}
 
 	c.JSON(200, gin.H{"message": "Message to release device was successfully sent"})
 }
