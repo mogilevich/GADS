@@ -313,24 +313,44 @@ func goIosDeviceWithRsdProvider(device *models.Device) error {
 }
 
 func runWDAGoIOS(device *models.Device) {
-	testConfig := testmanagerd.TestConfig{
-		BundleId:           config.ProviderConfig.WdaBundleID,
-		TestRunnerBundleId: config.ProviderConfig.WdaBundleID,
-		XctestConfigName:   "WebDriverAgentRunner.xctest",
-		Env:                nil,
-		Args:               nil,
-		TestsToRun:         nil,
-		TestsToSkip:        nil,
-		XcTest:             false,
-		Device:             device.GoIOSDeviceEntry,
-		Listener:           testmanagerd.NewTestListener(io.Discard, io.Discard, os.TempDir()),
-	}
-	_, err := testmanagerd.RunTestWithConfig(
-		device.Context,
-		testConfig)
-	if err != nil {
-		logger.ProviderLogger.LogError("ios_device_setup", fmt.Sprintf("Failed to run WebDriverAgent via testmanagerd on device `%s` - %s", device.UDID, err))
+	const maxRetries = 3
+	const retryDelay = 5 * time.Second
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		testConfig := testmanagerd.TestConfig{
+			BundleId:           config.ProviderConfig.WdaBundleID,
+			TestRunnerBundleId: config.ProviderConfig.WdaBundleID,
+			XctestConfigName:   "WebDriverAgentRunner.xctest",
+			Env:                nil,
+			Args:               nil,
+			TestsToRun:         nil,
+			TestsToSkip:        nil,
+			XcTest:             false,
+			Device:             device.GoIOSDeviceEntry,
+			Listener:           testmanagerd.NewTestListener(io.Discard, io.Discard, os.TempDir()),
+		}
+		_, err := testmanagerd.RunTestWithConfig(
+			device.Context,
+			testConfig)
+		if err == nil {
+			return
+		}
+
+		logger.ProviderLogger.LogError("ios_device_setup", fmt.Sprintf("Failed to run WebDriverAgent via testmanagerd on device `%s` (attempt %d/%d) - %s", device.UDID, attempt, maxRetries, err))
+
+		if attempt < maxRetries && strings.Contains(err.Error(), "InvalidService") {
+			logger.ProviderLogger.LogInfo("ios_device_setup", fmt.Sprintf("Retrying testmanagerd connection for device `%s` in %s", device.UDID, retryDelay))
+			select {
+			case <-time.After(retryDelay):
+				continue
+			case <-device.Context.Done():
+				ResetLocalDevice(device, "Device context cancelled while retrying WebDriverAgent.")
+				return
+			}
+		}
+
 		ResetLocalDevice(device, "Failed to run WebDriverAgent due to an error.")
+		return
 	}
 }
 
