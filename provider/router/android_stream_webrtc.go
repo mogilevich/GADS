@@ -11,6 +11,7 @@ package router
 
 import (
 	"GADS/common/models"
+	"GADS/common/utils"
 	"GADS/provider/devices"
 	"GADS/provider/logger"
 	"context"
@@ -37,15 +38,17 @@ type AndroidH264Frame struct {
 
 // AndroidWebRTCSession manages a WebRTC peer connection for Android streaming
 type AndroidWebRTCSession struct {
-	device         *models.Device
-	peerConnection *webrtc.PeerConnection
-	videoTrack     *webrtc.TrackLocalStaticSample
-	wsConn         io.ReadWriteCloser
-	frameChannel   chan AndroidH264Frame
-	ctx            context.Context
-	cancel         context.CancelFunc
-	mu             sync.Mutex
-	iceCandidates  []webrtc.ICECandidateInit
+	device          *models.DBDevice
+	streamPort      string
+	streamTargetFPS int
+	peerConnection  *webrtc.PeerConnection
+	videoTrack      *webrtc.TrackLocalStaticSample
+	wsConn          io.ReadWriteCloser
+	frameChannel    chan AndroidH264Frame
+	ctx             context.Context
+	cancel          context.CancelFunc
+	mu              sync.Mutex
+	iceCandidates   []webrtc.ICECandidateInit
 
 	// Timestamp tracking
 	firstTimestamp uint64
@@ -54,28 +57,24 @@ type AndroidWebRTCSession struct {
 }
 
 // NewAndroidWebRTCSession creates a new WebRTC session for Android device streaming
-func NewAndroidWebRTCSession(device *models.Device) (*AndroidWebRTCSession, error) {
+func NewAndroidWebRTCSession(device *models.DBDevice, streamPort string, streamTargetFPS int) (*AndroidWebRTCSession, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	session := &AndroidWebRTCSession{
-		device:        device,
-		ctx:           ctx,
-		cancel:        cancel,
-		iceCandidates: make([]webrtc.ICECandidateInit, 0),
-		frameChannel:  make(chan AndroidH264Frame, 30), // Buffer 30 frames
+		device:          device,
+		streamPort:      streamPort,
+		streamTargetFPS: streamTargetFPS,
+		ctx:             ctx,
+		cancel:          cancel,
+		iceCandidates:   make([]webrtc.ICECandidateInit, 0),
+		frameChannel:    make(chan AndroidH264Frame, 30), // Buffer 30 frames
 	}
 
 	// Create WebRTC configuration
-	config := webrtc.Configuration{
-		ICEServers: []webrtc.ICEServer{
-			{
-				URLs: []string{"stun:stun.l.google.com:19302"},
-			},
-		},
-	}
+	webrtcConfig := utils.GenerateWebRTCConfig()
 
 	// Create peer connection
-	pc, err := webrtc.NewPeerConnection(config)
+	pc, err := webrtc.NewPeerConnection(webrtcConfig)
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("failed to create peer connection: %w", err)
@@ -121,7 +120,7 @@ func NewAndroidWebRTCSession(device *models.Device) (*AndroidWebRTCSession, erro
 // Start begins the streaming pipeline
 func (s *AndroidWebRTCSession) Start() error {
 	// Connect to Android stream WebSocket
-	streamURL := "ws://localhost:" + s.device.StreamPort
+	streamURL := "ws://localhost:" + s.streamPort
 
 	// Dial WebSocket connection
 	conn, _, _, err := ws.Dial(s.ctx, streamURL)
@@ -203,8 +202,8 @@ func (s *AndroidWebRTCSession) readFrames() {
 // writeFrames reads frames from channel and writes to WebRTC track
 func (s *AndroidWebRTCSession) writeFrames() {
 	fallbackDuration := time.Second / time.Duration(30) // Default 30fps
-	if s.device.StreamTargetFPS > 0 {
-		fallbackDuration = time.Second / time.Duration(s.device.StreamTargetFPS)
+	if s.streamTargetFPS > 0 {
+		fallbackDuration = time.Second / time.Duration(s.streamTargetFPS)
 	}
 
 	logger.ProviderLogger.LogInfo("stream_webrtc", fmt.Sprintf("Starting frame writing for device %s", s.device.UDID))
@@ -342,9 +341,15 @@ func (s *AndroidWebRTCSession) Close() {
 func AndroidWebRTCSocket(c *gin.Context) {
 	udid := c.Param("udid")
 
-	device, ok := devices.DBDeviceMap[udid]
-	if !ok || device == nil {
-		logger.ProviderLogger.LogError("android_webrtc", fmt.Sprintf("Device with UDID `%s` not found or is nil", udid))
+	platDev, deviceFound := devices.DevManager.Get(udid)
+	if !deviceFound {
+		logger.ProviderLogger.LogError("android_webrtc", fmt.Sprintf("Device with UDID `%s` not found", udid))
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	rcDev, isRcDevice := platDev.(devices.RemoteControllable)
+	if !isRcDevice {
+		logger.ProviderLogger.LogError("android_webrtc", fmt.Sprintf("Device `%s` does not support streaming", udid))
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}
@@ -358,7 +363,7 @@ func AndroidWebRTCSocket(c *gin.Context) {
 	defer conn.Close()
 
 	// Create WebRTC session
-	session, err := NewAndroidWebRTCSession(device)
+	session, err := NewAndroidWebRTCSession(rcDev.GetDBDevice(), rcDev.GetStreamPort(), rcDev.GetStreamTargetFPS())
 	if err != nil {
 		logger.ProviderLogger.LogError("android_webrtc", fmt.Sprintf("Failed to create WebRTC session for device `%s` - %s", udid, err))
 		wsutil.WriteServerText(conn, []byte(`{"type":"error","message":"Failed to create WebRTC session"}`))

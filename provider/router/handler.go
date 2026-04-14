@@ -57,6 +57,7 @@ func HandleRequests() *gin.Engine {
 	deviceGroup.POST("/tap", DeviceTap)
 	deviceGroup.POST("/touchAndHold", DeviceTouchAndHold)
 	deviceGroup.POST("/home", DeviceHome)
+	deviceGroup.POST("/recents", DeviceRecents)
 	deviceGroup.POST("/lock", DeviceLock)
 	deviceGroup.POST("/unlock", DeviceUnlock)
 	deviceGroup.POST("/screenshot", DeviceScreenshot)
@@ -66,6 +67,7 @@ func HandleRequests() *gin.Engine {
 	deviceGroup.POST("/typeText", DeviceTypeText)
 	deviceGroup.GET("/getClipboard", DeviceGetClipboard)
 	deviceGroup.Any("/appium/*proxyPath", AppiumReverseProxy)
+	deviceGroup.GET("/adb-tunnel", ADBTunnelProxy)
 	deviceGroup.GET("/android-stream", AndroidStreamProxy)
 	deviceGroup.GET("/android-stream-mjpeg", AndroidStreamMJPEG)
 	deviceGroup.POST("/update-stream-settings", UpdateDeviceStreamSettings)
@@ -83,6 +85,7 @@ func HandleRequests() *gin.Engine {
 	deviceGroup.POST("/launchApp", LaunchApp)
 	deviceGroup.POST("/closeApp", CloseApp)
 	deviceGroup.POST("/reset", ResetDevice)
+	deviceGroup.POST("/killApp", KillApp)
 	deviceGroup.POST("/uploadAndInstallApp", UploadAndInstallApp)
 	deviceGroup.GET("/webrtc", DevicesWebRTCSocket)
 	deviceAppiumPluginGroup := deviceGroup.Group("/appium-plugin")
@@ -91,8 +94,6 @@ func HandleRequests() *gin.Engine {
 	deviceAppiumPluginGroup.POST("/session/add/:session_id", AppiumPluginAddSession)
 	deviceAppiumPluginGroup.POST("/session/remove", AppiumPluginRemoveSession)
 	deviceAppiumPluginGroup.POST("/ping", AppiumPluginPing)
-	deviceAppiumPluginGroup.POST("/log-session", AppiumPluginSessionLog)
-	deviceAppiumPluginGroup.POST("/screenshot", AppiumPluginScreenshot)
 
 	return r
 }

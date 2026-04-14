@@ -27,13 +27,22 @@ type Provider struct {
 	UseGadsIosStream     bool   `json:"use_gads_ios_stream" bson:"use_gads_ios_stream"`
 	HubAddress           string `json:"hub_address" bson:"-"`
 	SetupAppiumServers   bool   `json:"setup_appium_servers" bson:"setup_appium_servers"`
-	MinioAvailable       bool   `json:"minio_available" bson:"-"`
 	TURNUsernameSuffix   string `json:"-" bson:"-"`
+	UseIOSPairCache      bool   `json:"-" bson:"-"`
+}
+
+// ProviderDeviceSync is the lightweight struct sent from provider to hub each second
+// for each device. It carries only the runtime fields the hub needs.
+type ProviderDeviceSync struct {
+	UDID          string `json:"udid"`
+	Host          string `json:"host"`
+	Connected     bool   `json:"connected"`
+	ProviderState string `json:"provider_state"`
 }
 
 type ProviderData struct {
-	ProviderData Provider `json:"provider"`
-	DeviceData   []Device `json:"device_data"`
+	ProviderData Provider             `json:"provider"`
+	DeviceData   []ProviderDeviceSync `json:"device_data"`
 }
 
 type HubConfig struct {
@@ -45,7 +54,6 @@ type HubConfig struct {
 	FilesTempDir         string `json:"-"`
 	OS                   string `json:"os"`
 	AuthEnabled          bool   `json:"auth_enabled"`
-	MinioAvailable       bool   `json:"minio_available"`
 	OIDCEnabled          bool   `json:"oidc_enabled"`
 	TURNUsernameSuffix   string `json:"-"`
 }
