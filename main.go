@@ -77,13 +77,12 @@ func main() {
 	}
 	adbClientCmd.Flags().String("hub", "", "Hub URL (e.g. http://localhost:10000)")
 	adbClientCmd.Flags().String("udid", "", "Device UDID to tunnel")
-	adbClientCmd.Flags().String("username", "", "GADS username")
-	adbClientCmd.Flags().String("password", "", "GADS password")
+	adbClientCmd.Flags().String("username", "", "GADS username (not required when --token is used)")
+	adbClientCmd.Flags().String("password", "", "GADS password (not required when --token is used)")
+	adbClientCmd.Flags().String("token", "", "JWT access token (alternative to username/password, for SSO users)")
 	adbClientCmd.Flags().Int("port", 0, "Local port to listen on (0 = auto)")
 	adbClientCmd.MarkFlagRequired("hub")
 	adbClientCmd.MarkFlagRequired("udid")
-	adbClientCmd.MarkFlagRequired("username")
-	adbClientCmd.MarkFlagRequired("password")
 	rootCmd.AddCommand(adbClientCmd)
 
 	var versionCmd = &cobra.Command{
