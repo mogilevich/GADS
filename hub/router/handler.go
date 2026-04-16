@@ -251,55 +251,88 @@ func injectSSOButton(html []byte) []byte {
 	return bytes.Replace(html, []byte("</body>"), append(ssoScript, []byte("</body>")...), 1)
 }
 
-// injectCopyTokenButton injects a floating "Copy ADB Token" button visible only to authenticated users.
+// injectCopyTokenButton injects a floating button for ADB tunnel CLI.
+// On device control pages (/devices/control/<udid>) it copies the full pre-filled
+// adb-tunnel command. On other pages it copies just the access token.
 func injectCopyTokenButton(html []byte) []byte {
 	script := []byte(`<script>
 (function() {
   if (!localStorage.getItem('accessToken')) return;
 
-  var btn = document.createElement('button');
-  btn.id = 'copy-adb-token-btn';
-  btn.textContent = '\u{1F4CB} ADB Token';
-  btn.title = 'Copy access token for adb-tunnel CLI';
-  btn.style.cssText = 'position:fixed;bottom:16px;right:16px;z-index:9999;padding:8px 14px;' +
+  var btnStyle = 'position:fixed;bottom:16px;right:16px;z-index:9999;padding:8px 14px;' +
     'background:#2e7d32;color:#fff;border:none;border-radius:6px;cursor:pointer;' +
     'font-family:sans-serif;font-size:13px;font-weight:500;box-shadow:0 2px 8px rgba(0,0,0,0.2);' +
     'transition:background 0.2s,transform 0.1s;';
-  btn.onmouseover = function() { btn.style.background='#1b5e20'; };
-  btn.onmouseout = function() { btn.style.background='#2e7d32'; };
 
-  btn.onclick = function() {
-    var token = localStorage.getItem('accessToken');
-    if (!token) { btn.textContent = '\u274C No token'; return; }
-    navigator.clipboard.writeText(token).then(function() {
+  function copyToClipboard(text, btn, label) {
+    navigator.clipboard.writeText(text).then(function() {
       btn.textContent = '\u2705 Copied!';
       btn.style.transform = 'scale(1.05)';
-      setTimeout(function() {
-        btn.textContent = '\u{1F4CB} ADB Token';
-        btn.style.transform = 'scale(1)';
-      }, 1500);
+      setTimeout(function() { btn.textContent = label; btn.style.transform = 'scale(1)'; }, 1500);
     }).catch(function() {
-      // Fallback for non-HTTPS contexts
       var ta = document.createElement('textarea');
-      ta.value = token;
-      ta.style.cssText = 'position:fixed;left:-9999px';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
+      ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px';
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy');
       document.body.removeChild(ta);
       btn.textContent = '\u2705 Copied!';
-      setTimeout(function() { btn.textContent = '\u{1F4CB} ADB Token'; }, 1500);
+      setTimeout(function() { btn.textContent = label; }, 1500);
     });
-  };
+  }
 
-  document.body.appendChild(btn);
+  function getUdidFromUrl() {
+    var m = window.location.pathname.match(/\/devices\/control\/([^/]+)/);
+    return m ? m[1] : null;
+  }
 
-  // Remove button if user logs out
+  function renderButton() {
+    var old = document.getElementById('gads-adb-btn');
+    if (old) old.remove();
+
+    var token = localStorage.getItem('accessToken');
+    if (!token) return;
+
+    var udid = getUdidFromUrl();
+    var btn = document.createElement('button');
+    btn.id = 'gads-adb-btn';
+    btn.style.cssText = btnStyle;
+    btn.onmouseover = function() { btn.style.background='#1b5e20'; };
+    btn.onmouseout = function() { btn.style.background='#2e7d32'; };
+
+    if (udid) {
+      var label = '\u{1F4CB} adb-tunnel';
+      btn.textContent = label;
+      btn.title = 'Copy full adb-tunnel command to clipboard';
+      btn.onclick = function() {
+        var cmd = 'GADS adb-tunnel --hub=' + window.location.origin +
+          ' --udid=' + udid + ' --token=' + localStorage.getItem('accessToken');
+        copyToClipboard(cmd, btn, label);
+      };
+    } else {
+      var label = '\u{1F4CB} ADB Token';
+      btn.textContent = label;
+      btn.title = 'Copy access token for adb-tunnel CLI';
+      btn.onclick = function() {
+        copyToClipboard(localStorage.getItem('accessToken'), btn, label);
+      };
+    }
+
+    document.body.appendChild(btn);
+  }
+
+  renderButton();
+
+  // Re-render on SPA navigation
+  var lastPath = window.location.pathname;
   var observer = new MutationObserver(function() {
     if (!localStorage.getItem('accessToken')) {
-      var el = document.getElementById('copy-adb-token-btn');
+      var el = document.getElementById('gads-adb-btn');
       if (el) el.remove();
       observer.disconnect();
+      return;
+    }
+    if (window.location.pathname !== lastPath) {
+      lastPath = window.location.pathname;
+      renderButton();
     }
   });
   observer.observe(document.getElementById('root'), { childList: true, subtree: true });
