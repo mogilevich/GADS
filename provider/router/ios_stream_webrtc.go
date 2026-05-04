@@ -795,7 +795,7 @@ func (s *WebRTCSession) Close() {
 		// before DTLS teardown triggers ICE failure via UDP. Without this delay,
 		// the browser sees ICE fail before WebSocket onclose and doesn't reconnect.
 		go func() {
-			time.Sleep(250 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 			s.peerConnection.Close()
 		}()
 	}
