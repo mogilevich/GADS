@@ -654,6 +654,10 @@ func (s *WebRTCSession) writeH264ToTrack() {
 		case h264Data, ok := <-h264Channel:
 			if !ok {
 				logger.ProviderLogger.LogInfo("stream_webrtc", fmt.Sprintf("H.264 channel closed for device %s", s.device.UDID))
+				// Cancel context to signal WebSocket handler to close the connection
+				if s.ctx.Err() == nil {
+					s.cancel()
+				}
 				return
 			}
 
@@ -819,6 +823,12 @@ func IOSWebRTCSocket(c *gin.Context) {
 		wsutil.WriteServerText(conn, []byte(`{"type":"error","message":"Failed to start streaming"}`))
 		return
 	}
+
+	// Close WebSocket when pipeline dies to unblock ReadClientData and trigger session cleanup
+	go func() {
+		<-session.ctx.Done()
+		conn.Close()
+	}()
 
 	// Handle ICE candidates
 	session.OnICECandidate(func(candidate *webrtc.ICECandidate) {
