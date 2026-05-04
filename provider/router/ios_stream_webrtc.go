@@ -791,7 +791,13 @@ func (s *WebRTCSession) Close() {
 	}
 
 	if s.peerConnection != nil {
-		s.peerConnection.Close()
+		// Delay PeerConnection close so the WebSocket TCP close reaches the browser
+		// before DTLS teardown triggers ICE failure via UDP. Without this delay,
+		// the browser sees ICE fail before WebSocket onclose and doesn't reconnect.
+		go func() {
+			time.Sleep(250 * time.Millisecond)
+			s.peerConnection.Close()
+		}()
 	}
 
 	logger.ProviderLogger.LogInfo("stream_webrtc", fmt.Sprintf("Closed WebRTC session for device %s", s.device.UDID))
