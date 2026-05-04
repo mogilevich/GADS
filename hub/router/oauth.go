@@ -95,7 +95,7 @@ func OAuth2TokenEndpoint(c *gin.Context) {
 	response := models.AuthResponse{
 		AccessToken: token,
 		TokenType:   "Bearer",
-		ExpiresIn:   3600,
+		ExpiresIn:   28800,
 		Username:    credential.UserID,
 		Role:        userRole,
 	}
@@ -109,7 +109,7 @@ func generateAccessToken(credential *models.ClientCredentials, origin string, us
 		userRole,
 		credential.Tenant,
 		[]string{userRole},
-		time.Hour,
+		8 * time.Hour,
 		origin,
 	)
 	if err != nil {

@@ -137,7 +137,7 @@ func SSOCallbackHandler(c *gin.Context) {
 	}
 
 	origin := GetOriginFromRequest(c)
-	token, err := GenerateJWT(username, role, defaultTenant, scopes, time.Hour, origin)
+	token, err := GenerateJWT(username, role, defaultTenant, scopes, 8*time.Hour, origin)
 	if err != nil {
 		c.String(http.StatusInternalServerError, "Token generation failed")
 		return

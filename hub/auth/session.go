@@ -40,7 +40,7 @@ func CreateSession(user models.User, sessionID uuid.UUID) {
 	session := &Session{
 		User:      user,
 		SessionID: sessionID.String(),
-		ExpireAt:  time.Now().Add(time.Hour),
+		ExpireAt:  time.Now().Add(8 * time.Hour),
 	}
 
 	mapMutex.Lock()
