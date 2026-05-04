@@ -1,4 +1,4 @@
-# Android adb-client
+# Android adb-tunnel
 
 ## Overview
 
@@ -38,4 +38,4 @@ SSO users do not have a local password, so they must authenticate with a JWT acc
 
 - You can only create a tunnel to devices that are currently being remotely controlled by you.
 - Stopping the remote control of the device through the hub interface will also drop the tunnel connection.
-- Stopping the adb client will not drop your remote control session.
+- Stopping the adb tunnel will not drop your remote control session.
