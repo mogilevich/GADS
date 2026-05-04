@@ -912,12 +912,12 @@ type lockDeviceResponse struct {
 
 // LockDevice godoc
 // @Summary      Lock a device via REST API
-// @Description  Acquire an exclusive lock on a device. Authenticate via Authorization header (Bearer token) or ?token= query param (raw token, no Bearer prefix). Optional ?ttl_minutes= (default 10, max 60). If locked by another user returns 409. Admins can take over any lock.
+// @Description  Acquire an exclusive lock on a device. Authenticate via Authorization header (Bearer token) or ?token= query param (raw token, no Bearer prefix). Optional ?ttl_minutes= (default 10, max 480). If locked by another user returns 409. Admins can take over any lock.
 // @Tags         Hub - Devices
 // @Produce      json
 // @Param        udid         path   string  true   "Device UDID"
 // @Param        token        query  string  false  "Raw JWT token (alternative to Authorization header)"
-// @Param        ttl_minutes  query  int     false  "Lock TTL in minutes (default 10, max 60)"
+// @Param        ttl_minutes  query  int     false  "Lock TTL in minutes (default 10, max 480)"
 // @Success      200   {object}  lockDeviceResponse
 // @Failure      401   {object}  models.ErrorResponse
 // @Failure      404   {object}  models.ErrorResponse
@@ -937,8 +937,8 @@ func LockDevice(c *gin.Context) {
 	if ttl <= 0 {
 		ttl = 10
 	}
-	if ttl > 60 {
-		ttl = 60
+	if ttl > 480 {
+		ttl = 480
 	}
 
 	device, ok := devices.HubDeviceStore.Get(udid)

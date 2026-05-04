@@ -144,8 +144,7 @@ func LoginHandler(c *gin.Context) {
 		return
 	}
 
-	// Generate JWT token with 1 hour validity
-	token, err := GenerateJWT(user.Username, user.Role, defaultTenant, scopes, time.Hour, origin)
+	token, err := GenerateJWT(user.Username, user.Role, defaultTenant, scopes, 8*time.Hour, origin)
 	if err != nil {
 		api.InternalError(c, "Failed to generate token")
 		return
@@ -155,7 +154,7 @@ func LoginHandler(c *gin.Context) {
 	api.OK(c, "", models.AuthResponse{
 		AccessToken: token,
 		TokenType:   "Bearer",
-		ExpiresIn:   3600, // 1 hour in seconds
+		ExpiresIn:   28800, // 8 hours in seconds
 		Username:    user.Username,
 		Role:        user.Role,
 	})
