@@ -545,7 +545,6 @@ type WebRTCSession struct {
 	iceCandidates           []webrtc.ICECandidateInit
 	pendingOffer            *webrtc.SessionDescription
 	onOrientationChangeFunc func()
-	onStallFunc             func()
 }
 
 // NewWebRTCSession creates a new WebRTC session for device streaming
@@ -664,9 +663,6 @@ func (s *WebRTCSession) writeH264ToTrack() {
 			if s.ctx.Err() == nil {
 				s.cancel()
 			}
-			if s.onStallFunc != nil {
-				go s.onStallFunc()
-			}
 			return
 		case h264Data, ok := <-h264Channel:
 			if !ok {
@@ -725,12 +721,6 @@ func (s *WebRTCSession) watchOrientationChanges() {
 // OnOrientationChange sets callback for orientation changes
 func (s *WebRTCSession) OnOrientationChange(handler func()) {
 	s.onOrientationChangeFunc = handler
-}
-
-// OnStall sets a callback invoked when the H.264 stall watchdog fires.
-// Use it to reset the device when WDA MJPEG freezes without crashing.
-func (s *WebRTCSession) OnStall(handler func()) {
-	s.onStallFunc = handler
 }
 
 // HandleOffer processes SDP offer from client
@@ -867,13 +857,6 @@ func IOSWebRTCSocket(c *gin.Context) {
 		<-session.ctx.Done()
 		conn.Close()
 	}()
-
-	// Reset the device when WDA MJPEG stalls — WDA stays frozen after session close,
-	// so without a reset the next session would stall immediately too.
-	session.OnStall(func() {
-		logger.ProviderLogger.LogInfo("ios_webrtc", fmt.Sprintf("Resetting device `%s` due to WDA MJPEG stall", udid))
-		platDev.Reset("WDA MJPEG stream stalled for 10s")
-	})
 
 	// Handle ICE candidates
 	session.OnICECandidate(func(candidate *webrtc.ICECandidate) {
