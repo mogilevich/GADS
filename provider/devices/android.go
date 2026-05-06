@@ -83,7 +83,11 @@ func shouldAttemptAndroidSetup(udid string) bool {
 	if !ok || state.consecutiveFailures == 0 {
 		return true
 	}
-	delay := androidSetupBackoffBase * (1 << (state.consecutiveFailures - 1))
+	shifts := state.consecutiveFailures - 1
+	if shifts > 3 {
+		shifts = 3 // 10s << 3 = 80s already exceeds the 60s cap
+	}
+	delay := androidSetupBackoffBase << shifts
 	if delay > androidSetupBackoffMax {
 		delay = androidSetupBackoffMax
 	}
