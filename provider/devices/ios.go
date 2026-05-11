@@ -13,13 +13,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"GADS/common"
@@ -42,67 +42,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const (
-	iosSetupBackoffBase = 10 * time.Second
-	iosSetupBackoffMax  = 60 * time.Second
-)
-
-type iosSetupBackoffState struct {
-	lastFailedAt        time.Time
-	consecutiveFailures int
-}
-
-var (
-	iosSetupBackoffMu sync.Mutex
-	iosSetupBackoffs  = map[string]*iosSetupBackoffState{}
-)
-
-// shouldAttemptIOSSetup returns false if the device is in cooldown after a recent
-// rapid setup failure, preventing a tight retry loop from overwhelming system resources.
-func shouldAttemptIOSSetup(udid string) bool {
-	iosSetupBackoffMu.Lock()
-	defer iosSetupBackoffMu.Unlock()
-	state, ok := iosSetupBackoffs[udid]
-	if !ok || state.consecutiveFailures == 0 {
-		return true
-	}
-	shifts := state.consecutiveFailures - 1
-	if shifts > 3 {
-		shifts = 3
-	}
-	delay := iosSetupBackoffBase << shifts
-	if delay > iosSetupBackoffMax {
-		delay = iosSetupBackoffMax
-	}
-	return time.Since(state.lastFailedAt) >= delay
-}
-
-// recordIOSSetupFailure increments the per-device backoff counter.
-// Errors from context cancellation or process kill are not counted — those are
-// external resets, not device faults.
-func recordIOSSetupFailure(udid string, err error) {
-	msg := err.Error()
-	if strings.Contains(msg, "context canceled") || strings.Contains(msg, "signal: killed") {
-		return
-	}
-	iosSetupBackoffMu.Lock()
-	defer iosSetupBackoffMu.Unlock()
-	state := iosSetupBackoffs[udid]
-	if state == nil {
-		state = &iosSetupBackoffState{}
-		iosSetupBackoffs[udid] = state
-	}
-	state.consecutiveFailures++
-	state.lastFailedAt = time.Now()
-}
-
-// resetIOSSetupBackoff clears backoff state after a successful setup.
-func resetIOSSetupBackoff(udid string) {
-	iosSetupBackoffMu.Lock()
-	defer iosSetupBackoffMu.Unlock()
-	delete(iosSetupBackoffs, udid)
-}
-
 // IOSDevice holds iOS-specific runtime state alongside the shared RuntimeState.
 type IOSDevice struct {
 	RuntimeState
@@ -123,18 +62,27 @@ func (d *IOSDevice) GetWDASessionID() string  { return d.WDASessionID }
 
 // Setup runs the full iOS device provisioning sequence.
 func (d *IOSDevice) Setup() (retErr error) {
-	if !shouldAttemptIOSSetup(d.GetUDID()) {
-		return nil
-	}
-
 	d.SetupMutex.Lock()
 	defer d.SetupMutex.Unlock()
 
+	if time.Now().Before(d.setupBackoffUntil) {
+		return nil
+	}
+
 	defer func() {
-		if retErr != nil {
-			recordIOSSetupFailure(d.GetUDID(), retErr)
-		} else {
-			resetIOSSetupBackoff(d.GetUDID())
+		switch {
+		case retErr == nil:
+			d.setupBackoffNext = 0
+			d.setupBackoffUntil = time.Time{}
+		case errors.Is(retErr, context.Canceled), errors.Is(retErr, context.DeadlineExceeded):
+			// external cancellation — do not apply backoff
+		default:
+			if d.setupBackoffNext == 0 {
+				d.setupBackoffNext = setupBackoffBase
+			} else {
+				d.setupBackoffNext = min(d.setupBackoffNext*2, setupBackoffMax)
+			}
+			d.setupBackoffUntil = time.Now().Add(d.setupBackoffNext)
 		}
 	}()
 
