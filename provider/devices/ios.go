@@ -247,20 +247,12 @@ func (d *IOSDevice) allocateAndForwardPorts() error {
 }
 
 func (d *IOSDevice) startWebDriverAgent() error {
-	if d.SemVer.Major() < 17 || d.SemVer.Compare(semver.MustParse("17.4.0")) >= 0 {
-		if err := d.installApp(fmt.Sprintf("%s/WebDriverAgent.ipa", config.ProviderConfig.ProviderFolder)); err != nil {
-			logger.ProviderLogger.LogError("ios_device_setup", fmt.Sprintf("Could not install WebDriverAgent on device `%s` - %s", d.GetUDID(), err))
-			d.Reset("Failed to install WebDriverAgent on device.")
-			return err
-		}
-		go d.runWDA()
-	} else {
-		if err := d.launchApp(config.ProviderConfig.WdaBundleID, true); err != nil {
-			logger.ProviderLogger.LogError("ios_device_setup", fmt.Sprintf("Could not launch WebDriverAgent on device `%s` - %s", d.GetUDID(), err))
-			d.Reset("Failed to launch WebDriverAgent on device.")
-			return err
-		}
+	if err := d.installApp(fmt.Sprintf("%s/WebDriverAgent.ipa", config.ProviderConfig.ProviderFolder)); err != nil {
+		logger.ProviderLogger.LogError("ios_device_setup", fmt.Sprintf("Could not install WebDriverAgent on device `%s` - %s", d.GetUDID(), err))
+		d.Reset("Failed to install WebDriverAgent on device.")
+		return err
 	}
+	go d.runWDA()
 	return nil
 }
 
@@ -529,7 +521,11 @@ func (d *IOSDevice) installApp(appPath string) error {
 		d.Reset("Failed to create zipconduit connection for app installation.")
 		return err
 	}
-	conn.SendFile(appPath)
+	if err := conn.SendFile(appPath); err != nil {
+		logger.ProviderLogger.LogInfo("install_app_ios", fmt.Sprintf("Failed to send app file when installing app `%s` on device `%s`", appPath, d.GetUDID()))
+		d.Reset("Failed to send app file for installation.")
+		return err
+	}
 	return nil
 }
 
