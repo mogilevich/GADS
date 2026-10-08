@@ -37,31 +37,22 @@ func Start(flags *pflag.FlagSet) {
 	udid, _ := flags.GetString("udid")
 	username, _ := flags.GetString("username")
 	password, _ := flags.GetString("password")
-	token, _ := flags.GetString("token")
-	if token == "" {
-		token = os.Getenv("GADS_TOKEN")
+	if password == "" {
+		password = os.Getenv("GADS_PASSWORD")
+	}
+	if password == "" {
+		log.Fatal("password is required: use --password flag or GADS_PASSWORD env var")
 	}
 	localPort, _ := flags.GetInt("port")
 
 	hub = strings.TrimRight(hub, "/")
 
-	if token != "" {
-		log.Println("Using provided access token")
-	} else {
-		// Fall back to username/password login
-		if password == "" {
-			password = os.Getenv("GADS_PASSWORD")
-		}
-		if username == "" || password == "" {
-			log.Fatal("authentication required: provide --token (or GADS_TOKEN env var), or --username + --password (or GADS_PASSWORD env var)")
-		}
-		var err error
-		token, err = authenticate(hub, username, password)
-		if err != nil {
-			log.Fatalf("Authentication failed: %v", err)
-		}
-		log.Println("Authenticated successfully")
+	// Authenticate
+	token, err := authenticate(hub, username, password)
+	if err != nil {
+		log.Fatalf("Authentication failed: %v", err)
 	}
+	log.Println("Authenticated successfully")
 
 	// Open local TCP listener
 	listenAddr := fmt.Sprintf("localhost:%d", localPort)
