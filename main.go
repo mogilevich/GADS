@@ -49,6 +49,11 @@ func main() {
 		"\nTokens are automatically renewed while they are being used, so this is effectively an inactivity timeout")
 	hubCmd.Flags().Duration("max-session-age", 24*time.Hour, "Maximum total lifetime of a user session, no matter how many times its token was renewed."+
 		"\nUse 0 for no limit. Tokens from the OAuth2 client credentials flow are not affected")
+	hubCmd.Flags().String("oidc-issuer", "", "OIDC issuer URL (e.g., https://sso.example.dev/realms/SSO)")
+	hubCmd.Flags().String("oidc-client-id", "", "OIDC client ID")
+	hubCmd.Flags().String("oidc-client-secret", "", "OIDC client secret")
+	hubCmd.Flags().String("oidc-redirect-uri", "", "OIDC redirect URI (e.g., http://hub:10000/auth/sso/callback)")
+	hubCmd.Flags().String("oidc-admin-group", "", "Keycloak group name that maps to GADS admin role")
 	rootCmd.AddCommand(hubCmd)
 
 	// Provider Command
@@ -77,13 +82,12 @@ func main() {
 	}
 	adbTunnelCmd.Flags().String("hub", "", "Hub URL (e.g. http://localhost:10000)")
 	adbTunnelCmd.Flags().String("udid", "", "Device UDID to tunnel")
-	adbTunnelCmd.Flags().String("username", "", "GADS username")
-	adbTunnelCmd.Flags().String("password", "", "GADS password")
+	adbTunnelCmd.Flags().String("username", "", "GADS username (not required when --token is used)")
+	adbTunnelCmd.Flags().String("password", "", "GADS password (not required when --token is used)")
+	adbTunnelCmd.Flags().String("token", "", "JWT access token (alternative to username/password, for SSO users)")
 	adbTunnelCmd.Flags().Int("port", 0, "Local port to listen on (0 = auto)")
 	adbTunnelCmd.MarkFlagRequired("hub")
 	adbTunnelCmd.MarkFlagRequired("udid")
-	adbTunnelCmd.MarkFlagRequired("username")
-	adbTunnelCmd.MarkFlagRequired("password")
 	rootCmd.AddCommand(adbTunnelCmd)
 
 	var versionCmd = &cobra.Command{
