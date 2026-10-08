@@ -10,7 +10,6 @@
 package devices
 
 import (
-	"GADS/common"
 	"GADS/common/auth"
 	"GADS/common/db"
 	"GADS/common/models"
@@ -92,22 +91,22 @@ func (d *AndroidDevice) Setup() (retErr error) {
 	d.getHardwareModel()
 
 	if err := d.updateScreenSizeIfNeeded(); err != nil {
-		return d.resetWithError("update screen dimensions with adb", err)
+		return resetWithError(d, "update screen dimensions with adb", err)
 	}
 	if err := d.disableAutoRotation(); err != nil {
-		return d.resetWithError("disable auto-rotation", err)
+		return resetWithError(d, "disable auto-rotation", err)
 	}
 	if err := d.allocatePorts(); err != nil {
-		return d.resetWithError("allocate free host ports", err)
+		return resetWithError(d, "allocate free host ports", err)
 	}
 	if err := d.enableADBTCPMode(); err != nil {
-		return d.resetWithError("enable ADB TCP mode", err)
+		return resetWithError(d, "enable ADB TCP mode", err)
 	}
 	if err := d.cleanupOldApps(); err != nil {
 		return err // already reset inside cleanupOldApps
 	}
 	if err := d.installGadsSettingsApp(); err != nil {
-		return d.resetWithError("install GADS Settings", err)
+		return resetWithError(d, "install GADS Settings", err)
 	}
 	time.Sleep(1 * time.Second)
 	if err := d.pushGadsSettingsInTmpLocal(); err != nil {
@@ -121,7 +120,7 @@ func (d *AndroidDevice) Setup() (retErr error) {
 		return err // already reset inside
 	}
 	if err := d.applyStreamConfig(); err != nil {
-		return d.resetWithError("apply device stream settings", err)
+		return resetWithError(d, "apply device stream settings", err)
 	}
 	if err := d.setupAppiumIfNeeded(); err != nil {
 		return err
@@ -144,6 +143,10 @@ func (d *AndroidDevice) updateScreenSizeIfNeeded() error {
 }
 
 func (d *AndroidDevice) allocatePorts() error {
+	// Free ports still held from a previous run: Reset is a no-op once the device is already
+	// in `init` (e.g. reset concurrently mid-setup), so ports allocated later in that run stay held
+	d.releaseHostPorts()
+
 	streamPort, err := providerutil.GetFreePort()
 	if err != nil {
 		return fmt.Errorf("could not allocate free host port for GADS-stream - %w", err)
@@ -304,13 +307,15 @@ func (d *AndroidDevice) AppiumCapabilities() models.AppiumServerCapabilities {
 // Reset overrides RuntimeState.Reset to free Android-specific ports.
 func (d *AndroidDevice) Reset(reason string) {
 	if d.ResetBase(reason) {
-		common.MutexManager.LocalDevicePorts.Lock()
-		delete(providerutil.UsedPorts, d.StreamPort)
-		delete(providerutil.UsedPorts, d.AndroidIMEPort)
-		delete(providerutil.UsedPorts, d.AndroidRemoteServerPort)
-		delete(providerutil.UsedPorts, d.ADBPort)
-		common.MutexManager.LocalDevicePorts.Unlock()
+		inUse := d.releaseHostPorts()
+		logger.ProviderLogger.LogInfo("provider", fmt.Sprintf("Released host ports for device `%v`, %d ports still allocated on the provider", d.GetUDID(), inUse))
 	}
+}
+
+// releaseHostPorts frees the device's host ports.
+// Returns how many ports are still allocated on the provider.
+func (d *AndroidDevice) releaseHostPorts() int {
+	return providerutil.ReleasePorts(&d.StreamPort, &d.AndroidIMEPort, &d.AndroidRemoteServerPort, &d.ADBPort)
 }
 
 func (d *AndroidDevice) androidRemoteServerRequest(method, endpoint string, requestBody io.Reader) (*http.Response, error) {
