@@ -215,21 +215,17 @@ func serveIndexHTML(c *gin.Context, uiFS fs.FS) {
 func injectSSOButton(html []byte) []byte {
 	ssoScript := []byte(`<script>
 (function() {
-  // Only show SSO button if user is not logged in
-  if (localStorage.getItem('accessToken')) return;
-
-  // Wait for the page to render, then inject the SSO button
-  var attempts = 0;
-  var interval = setInterval(function() {
-    attempts++;
-    if (attempts > 50) { clearInterval(interval); return; }
-
-    // Look for any form or login-related container
+  // Keep the SSO button next to the login form while the user is signed out. The UI
+  // can sign out without reloading the page (a 401 after a hub restart or an idle
+  // session), so the button follows the page instead of being placed once on load.
+  function render() {
+    var el = document.getElementById('sso-login-container');
     var form = document.querySelector('form');
-    var root = document.getElementById('root');
-    if (!form && (!root || !root.innerHTML)) return;
-
-    clearInterval(interval);
+    if (localStorage.getItem('accessToken') || !form) {
+      if (el) el.remove();
+      return;
+    }
+    if (el) return;
 
     // Create SSO button container
     var container = document.createElement('div');
@@ -253,22 +249,17 @@ func injectSSOButton(html []byte) []byte {
     container.appendChild(btn);
 
     // Insert right after the login form instead of at the bottom of the page
-    if (form) {
-      form.parentNode.insertBefore(container, form.nextSibling);
-    } else {
-      document.body.appendChild(container);
-    }
+    form.parentNode.insertBefore(container, form.nextSibling);
+  }
 
-    // Remove SSO button if user becomes authenticated (SPA navigation)
-    var observer = new MutationObserver(function() {
-      if (localStorage.getItem('accessToken')) {
-        var el = document.getElementById('sso-login-container');
-        if (el) el.remove();
-        observer.disconnect();
-      }
-    });
-    observer.observe(root, { childList: true, subtree: true });
-  }, 100);
+  // The device list re-renders constantly, so handle at most one batch of changes per frame
+  var scheduled = false;
+  new MutationObserver(function() {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(function() { scheduled = false; render(); });
+  }).observe(document.body, { childList: true, subtree: true });
+  render();
 })();
 </script>`)
 
@@ -281,8 +272,6 @@ func injectSSOButton(html []byte) []byte {
 func injectCopyTokenButton(html []byte) []byte {
 	script := []byte(`<script>
 (function() {
-  if (!localStorage.getItem('accessToken')) return;
-
   var btnStyle = 'position:fixed;bottom:16px;right:16px;z-index:9999;padding:8px 14px;' +
     'background:#2e7d32;color:#fff;border:none;border-radius:6px;cursor:pointer;' +
     'font-family:sans-serif;font-size:13px;font-weight:500;box-shadow:0 2px 8px rgba(0,0,0,0.2);' +
@@ -343,23 +332,23 @@ func injectCopyTokenButton(html []byte) []byte {
     document.body.appendChild(btn);
   }
 
-  renderButton();
+  // Re-render on SPA navigation and on sign-in / sign-out, which can both happen
+  // without a page reload
+  var renderedFor;
+  function sync() {
+    var state = localStorage.getItem('accessToken') ? window.location.pathname : null;
+    if (state === renderedFor && (state === null || document.getElementById('gads-adb-btn'))) return;
+    renderedFor = state;
+    renderButton();
+  }
 
-  // Re-render on SPA navigation
-  var lastPath = window.location.pathname;
-  var observer = new MutationObserver(function() {
-    if (!localStorage.getItem('accessToken')) {
-      var el = document.getElementById('gads-adb-btn');
-      if (el) el.remove();
-      observer.disconnect();
-      return;
-    }
-    if (window.location.pathname !== lastPath) {
-      lastPath = window.location.pathname;
-      renderButton();
-    }
-  });
-  observer.observe(document.getElementById('root'), { childList: true, subtree: true });
+  var scheduled = false;
+  new MutationObserver(function() {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(function() { scheduled = false; sync(); });
+  }).observe(document.body, { childList: true, subtree: true });
+  sync();
 })();
 </script>`)
 
