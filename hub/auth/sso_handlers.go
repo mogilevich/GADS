@@ -14,12 +14,14 @@ import (
 	"GADS/common/models"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // SSOLoginHandler initiates the OIDC authorization code flow
@@ -118,6 +120,10 @@ func SSOCallbackHandler(c *gin.Context) {
 
 	// JIT user provisioning
 	err = provisionSSOUser(username, role)
+	if errors.Is(err, errLocalUserExists) {
+		c.String(http.StatusForbidden, "User `%s` is a local GADS account and cannot sign in through SSO", username)
+		return
+	}
 	if err != nil {
 		c.String(http.StatusInternalServerError, "User provisioning failed: %v", err)
 		return
@@ -146,17 +152,27 @@ func SSOCallbackHandler(c *gin.Context) {
 	serveCallbackHTML(c, token, username, role)
 }
 
-// provisionSSOUser creates or updates a user in MongoDB based on SSO login
+// errLocalUserExists is returned when an SSO identity names an existing local account
+var errLocalUserExists = errors.New("a local user with this username already exists")
+
+// provisionSSOUser creates or updates a user in MongoDB based on SSO login. It only manages
+// SSO-provisioned users (password starts with __SSO__): a local account with the same username
+// is not taken over, its role and workspaces were not granted through SSO
 func provisionSSOUser(username, role string) error {
 	existingUser, err := db.GlobalMongoStore.GetUser(username)
-	if err == nil && existingUser.Username != "" {
-		// User exists — update role only for SSO-provisioned users (password starts with __SSO__)
-		if strings.HasPrefix(existingUser.Password, "__SSO__") && existingUser.Role != role {
+	if err == nil {
+		if !strings.HasPrefix(existingUser.Password, "__SSO__") {
+			return errLocalUserExists
+		}
+		if existingUser.Role != role {
 			existingUser.Role = role
 			existingUser.ID = "" // Clear _id so omitempty excludes it from $set (MongoDB _id is immutable)
 			return db.GlobalMongoStore.AddOrUpdateUser(existingUser)
 		}
 		return nil
+	}
+	if !errors.Is(err, mongo.ErrNoDocuments) {
+		return fmt.Errorf("failed to look up user: %w", err)
 	}
 
 	// Create new SSO user with a random password they can't use for local login
