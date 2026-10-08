@@ -147,6 +147,13 @@ func StartHub(flags *pflag.FlagSet, appVersion string, uiFiles fs.FS, resourceFi
 		slog.Error(fmt.Sprintf("Failed to make usernames unique, two concurrent first SSO sign-ins can create a user twice - %s", err))
 	}
 
+	migrated, err := db.GlobalMongoStore.MigrateLegacySSOUsers()
+	if err != nil {
+		slog.Warn(fmt.Sprintf("Failed to migrate legacy SSO users - %s", err))
+	} else if migrated > 0 {
+		slog.Info(fmt.Sprintf("Migrated %d SSO users created by the earlier SSO integration", migrated))
+	}
+
 	// Sign-in through an OpenID Connect provider comes up in the background
 	configureOIDC(flags)
 
