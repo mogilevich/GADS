@@ -32,7 +32,7 @@ SSO users do not have a local password, so they must authenticate with a JWT acc
    You can also pass the token via the `GADS_TOKEN` environment variable instead of `--token`.
 4. Continue with steps 3-4 from the regular usage section above.
 
-**Note:** access tokens have a limited lifetime (1 hour by default). When the token expires you will need to copy a fresh one from `localStorage.accessToken` and restart the tunnel.
+**Note:** the token is bound to your hub session, which ends after `--token-ttl` of inactivity, after `--max-session-age` since login or when the hub restarts - see [Authentication sessions](hub.md#authentication-sessions). After that, copy a fresh token from `localStorage.accessToken` and restart the tunnel.
 
 ## Notes
 
